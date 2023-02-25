@@ -1,90 +1,125 @@
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import styles from './page.module.css'
+'use client';
+import Image from 'next/image';
+import useState from 'react-usestateref';
+import userPic from '../public/daftpunkSmall.webp';
+import botPic from '../public/chatGptBotImage.png'
+import sendBtn from '../public/sendBtn.svg'
 
-const inter = Inter({ subsets: ['latin'] })
+enum Creator {
+  Me = 0,
+  Bot = 1
+}
 
-export default function Home() {
+interface MessageProps {
+  text: string;
+  from: Creator;
+  key: number;
+}
+
+interface InputProps {
+  onSend: (input: string) => void;
+  disabled: boolean;
+}
+
+// One message in the chat
+const ChatMessage = ({ text, from }: MessageProps) => {
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <>
+      {from == Creator.Me && (
+        <div className='bg-white p-4 rounded-lg flex gap-4 items-center whitespace-pre-wrap'>
+          <Image src={userPic} alt='User' width={40} />
+          <p className='text-gray-700'>{text}</p>
         </div>
+      )}
+      {from == Creator.Bot && (
+        <div className='bg-gray-100 p-4 rounded-lg flex gap-4 items-center whitespace-pre-wrap'>
+          <Image src={botPic} alt='Bot' width={40} />
+          <p className='text-gray-700'>{text}</p>
+        </div>
+      )}
+    </>
+  )
+}
+
+// The chat input fiel
+const ChatInput = ({ onSend, disabled }: InputProps) => {
+  const [input, setInput] = useState('');
+
+  const sendInput = () => {
+    onSend(input);
+    setInput('');
+  }
+
+  const handleKeyDown = (event: any) => {
+    if (event.keyCode === 13) {
+      sendInput();
+    }
+  }
+
+  return (
+    <div className='bg-white border-2 p-2 rounded-lg flex justify-center'>
+      <input value={input} onChange={(event: any) => setInput(event.target.value)}
+        className='w-full py-2 px-3 text-gray-800 rounded-lg focus:outline-none'
+        type='text'
+        placeholder='Ask me anything'
+        disabled={disabled}
+        onKeyDown={(event) => handleKeyDown(event)}
+      />
+      {disabled && (<p>loading</p>)}
+      {!disabled && (<Image className='cursor-pointer' src={sendBtn} alt='send' width={20} />)}
+    </div>
+  )
+};
+
+// Page
+export default function Home() {
+  const [messages, setmessages, messagesRef] = useState<MessageProps[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const callApi = async (input: string) => {
+    setLoading(true);
+
+    const myMessage: MessageProps = {
+      text: input,
+      from: Creator.Me,
+      key: new Date().getTime()
+    };
+
+    setmessages([...messagesRef.current, myMessage]);
+    const response = await fetch('/api/generate-answer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt: input
+      })
+    }).then((response) => response.json());
+    setLoading(false);
+
+    if (response.text) {
+      const botMessage: MessageProps = {
+        text: response.text,
+        from: Creator.Bot,
+        key: new Date().getTime()
+      };
+      setmessages([...messagesRef.current, botMessage]);
+    } else {
+      //error
+    }
+  };
+
+  return (
+    <main className='relative max-w-2xl max-auto'>
+      <div className='sticky top-0 w-full pt-10 px-4'>
+        <ChatInput onSend={(input) => callApi(input)} disabled={loading} />
       </div>
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-        <div className={styles.thirteen}>
-          <Image src="/thirteen.svg" alt="13" width={40} height={31} priority />
-        </div>
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://beta.nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>Explore the Next.js 13 playground.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+      <div className='mt-10 px-4'>
+        {messages.map((message: MessageProps) => (
+          <ChatMessage key={message.key} text={message.text} from={message.from} />
+        ))}
+        {messages.length == 0 && <p className='text-center text-gray-400'>I am at your service</p>}
       </div>
     </main>
   )
